@@ -1,0 +1,296 @@
+---
+title: "Text Mining"
+author: "Ronit Yoari"
+date: "May 17, 2016"
+output: html_document
+---
+
+```{r}
+Needed <- c("tm", "SnowballCC", "RColorBrewer", "ggplot2", "wordcloud", "biclust", "cluster", "igraph", "fpc")   
+#install.packages(Needed, dependencies=TRUE)   
+    
+install.packages("Rcampdf", repos="http://datacube.wu.ac.at/", type = "source") 
+
+```
+Loading Texts
+Start by saving your text files in a folder titled: "texts" This will be the "corpus" (body) of texts you are mining. Read this next part carefully. You need to do three unique things here:
+
+Create a file named "texts" where you'll keep your data.
+Save the file to a particular place
+Copy and paste the appropriate scripts below.
+```{r}
+library(tm)
+cname <- file.path("C:", "texts")  
+dir(cname)
+# Use this to check to see that your texts have loaded. 
+```
+
+In order to save you the efforts of finding text files, we will use 20 Exemplary News Articles from the Reuters-21578 Data Set of Topic crude:
+```{r}
+data("crude")
+```
+Load the R package for text mining and then load your texts into R
+```{r}
+#Building a corpus from a file's directory 
+#docs <- Corpus(DirSource(cname))
+#Using the "crude" corpus
+reut21578 <- system.file("texts", "crude", package = "tm")
+docs<-VCorpus(DirSource(reut21578), list(reader =readReut21578XMLasPlain))
+
+summary(docs) 
+
+inspect(docs[1]) # read the second document (for example)
+```
+Preprocessing
+Once you are sure that all documents are loaded properly, go on to preprocess your texts.
+
+This step allows you to remove numbers, capitalization, common words, punctuation, and otherwise prepare your texts for analysis.
+This can be somewhat time consuming and picky, but it pays off in the end in terms of high quality analyses.
+Removing punctuation:
+
+Your computer cannot actually read. Punctuation and other special characters only look like more words to your computer and R. Use the following to methods to remove them from your text.
+
+```{r}
+docs <- tm_map(docs, removePunctuation)   
+inspect(docs[1]) # Check to see if it worked. 
+```
+If necesasry, such as when working with emails, you can remove special characters.This list has been customized to remove punctuation that you commonly find in emails. You can customize what is removed by changing them as you see fit, to meet your own unique needs.
+```{r}
+for(j in seq(docs))   
+   {   
+     docs[[j]] <- gsub("/", " ", docs[[j]])   
+     docs[[j]] <- gsub("@", " ", docs[[j]])   
+     docs[[j]] <- gsub("\\|", " ", docs[[j]])   
+  }   
+inspect(docs[1]) # You can check a document (in this case the first) to see if it worked.
+```
+Removing numbers:
+```{r}
+docs <- tm_map(docs, removeNumbers)   
+inspect(docs[1]) # Check to see if it worked. 
+```
+Converting to lowercase:As before, we want a word to appear exactly the same every time it appears. We therefore change everything to lowercase.
+```{r}
+docs <- tm_map(docs, tolower)   
+inspect(docs[1]) # Check to see if it worked. 
+```
+Removing "stopwords" (common words) that usually have no analytic value.In every text, there are a lot of common, and uninteresting words (a, and, also, the, etc.). Such words are frequent by their nature, and will confound your analysis if they remain in the text.
+```{r}
+# For a list of the stopwords, see:   
+# length(stopwords("english"))   
+# stopwords("english")   
+docs <- tm_map(docs, removeWords, stopwords("english"))   
+inspect(docs[1]) # Check to see if it worked.
+```
+Removing particular words:
+
+If you find that a particular word or two appear in the output, but are not of value to your particular analysis. You can remove them, specifically, from the text.
+```{r}
+docs <- tm_map(docs, removeWords, c("department", "email"))  
+# Just replace "department" and "email" with words that you would like to remove. 
+```
+Combining words that should stay togetherIf you wish to preserve a concept is only apparent as a collection of two or more words, then you can combine them or reduce them to a meaningful acronym before you begin the analysis. Here, I am using examples that are particular to qualitative data analysis.
+```{r}
+for (j in seq(docs))
+{
+docs[[j]] <- gsub("qualitative research", "QDA", docs[[j]])
+docs[[j]] <- gsub("qualitative studies", "QDA", docs[[j]])
+docs[[j]] <- gsub("qualitative analysis", "QDA", docs[[j]])
+docs[[j]] <- gsub("research methods", "research_methods", docs[[j]])
+}
+```
+Removing common word endings (e.g., "ing", "es", "s")
+
+This is referred to as "stemming" documents. We stem the documents so that a word will be recognizable to the computer, despite whether or not it may have a variety of possible endings in the original text.
+```{r}
+library(SnowballC)   
+docs <- tm_map(docs, stemDocument)   
+inspect(docs[1]) # Check to see if it worked. 
+```
+Stripping unnecessary whitespace from your documents:
+
+The above preprocessing will leave the documents with a lot of "white space". White space is the result of all the left over spaces that were not removed along with the words that were deleted. The white space can, and should, be removed.
+```{r}
+docs <- tm_map(docs, stripWhitespa)   
+inspect(docs[1]) # Check to see if it worked. 
+```
+To Finish
+
+Be sure to use the following script once you have completed preprocessing.
+
+This tells R to treat your preprocessed documents as text documents.
+```{r}
+docs <- tm_map(docs, PlainTextDocument) 
+```
+This is the end of the preprocessing stage.
+
+Stage the Data
+To proceed, create a document term matrix.
+
+This is what you will be using from this point on.
+```{r}
+dtm <- DocumentTermMatrix(docs,list(stripchart))
+dtm 
+## <<DocumentTermMatrix (documents: 20, terms: 951)>>
+## Non-/sparse entries: 1678/17342
+## Sparsity           : 91%
+## Maximal term length: 16
+## Weighting          : term frequency (tf)
+```
+To inspect, you can use: inspect(dtm)
+
+This will, however, fill up your terminal quickly. So you may prefer to view a subset: inspect(dtm[1:5, 1:20]) view first 5 docs & first 20 terms - modify as you like dim(dtm) This will display the number of documents & terms (in that order)
+
+You'll also need a transpose of this matrix. Create it using:
+```{r}
+tdm <- TermDocumentMatrix(docs)   
+tdm 
+## <<TermDocumentMatrix (terms: 951, documents: 20)>>
+## Non-/sparse entries: 1678/17342
+## Sparsity           : 91%
+## Maximal term length: 16
+## Weighting          : term frequency (tf)
+```
+Organize terms by their frequency:
+```{r}
+freq <- colSums(as.matrix(dtm))   
+length(freq) 
+## [1] 951
+ord <- order(freq) 
+```
+If you prefer to export the matrix to Excel:
+```{r}
+ m <- as.matrix(dtm)   
+ dim(m)   
+## [1]  20 951
+ write.csv(m, file="dtm.csv") 
+```
+Focus!
+That is, you can focus on just the interesting stuff.
+```{r}
+ #  Start by removing sparse terms:   
+dtms <- removeSparseTerms(dtm, 0.1) # This makes a matrix that is 10% empty space, maximum.   
+inspect(dtms) 
+## <<DocumentTermMatrix (documents: 20, terms: 3)>>
+## Non-/sparse entries: 60/0
+## Sparsity           : 0%
+## Maximal term length: 4
+## Weighting          : term frequency (tf)
+## 
+##               Terms
+## Docs           oil reut said
+##   character(0)   5    1    3
+##   character(0)  12    1   11
+##   character(0)   2    1    1
+##   character(0)   1    1    1
+##   character(0)   1    1    3
+##   character(0)   7    1   10
+##   character(0)   3    1    1
+##   character(0)   3    1    3
+##   character(0)   5    1    5
+##   character(0)   9    1    7
+##   character(0)   5    1    8
+##   character(0)   4    1    1
+##   character(0)   5    1    2
+##   character(0)   4    1    1
+##   character(0)   3    1    3
+##   character(0)   4    1    2
+##   character(0)   5    1    2
+##   character(0)   3    1    4
+##   character(0)   3    1    4
+##   character(0)   1    1    1
+```
+Word Frequency
+There are a lot of terms, so for now, just check out some of the most and least frequently occurring words.
+```{r}
+freq[head(ord)] 
+##      able    abroad    accept    across       add addressed 
+##         1         1         1         1         1         1
+freq[tail(ord)] 
+##   last    mln   opec prices   said    oil 
+##     24     31     42     48     73     85
+```
+Check out the frequency of frequencies.
+```{r}
+head(table(freq), 20) 
+## freq
+##   1   2   3   4   5   6   7   8   9  10  11  13  14  15  17  18  20  21 
+## 556 158  91  46  27  16  13   8   8   4   4   1   4   1   1   2   2   1 
+##  23  24 
+##   2   1
+```
+The resulting output is two rows of numbers. The top number is the frequency with which words appear and the bottom number reflects how many words appear that frequently. Here, considering only the 20 lowest word frequencies, we can see that 556 terms appear only once. There are also a lot of others that appear very infrequently.
+```{r}
+tail(table(freq), 20) 
+## freq
+##  6  7  8  9 10 11 13 14 15 17 18 20 21 23 24 31 42 48 73 85 
+## 16 13  8  8  4  4  1  4  1  1  2  2  1  2  1  1  1  1  1  1
+```
+Considering only the 20 greatest frequencies, we can see that there is a huge disparity in how frequently some terms appear.
+
+For a less, fine-grained look at term freqency :
+```{r}
+freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)   
+head(freq, 14) 
+##    oil   said prices   opec    mln   last    bpd   dlrs  crude market 
+##     85     73     48     42     31     24     23     23     21     20 
+##   reut  saudi   will    one 
+##     20     18     18     17
+```
+An alternate view of term frequency:This will identify all terms that appear frequently (in this case, 30 or more times).
+```{r}
+findFreqTerms(dtm, lowfreq=30)   # Change "30" to whatever is most appropriate for your text data.
+## [1] "mln"    "oil"    "opec"   "prices" "said"
+```
+Yet another way to do this:
+```{r}
+wf <- data.frame(word=names(freq), freq=freq)   
+head(wf) 
+##          word freq
+## oil       oil   85
+## said     said   73
+## prices prices   48
+## opec     opec   42
+## mln       mln   31
+## last     last   24
+```
+Plot Word Frequencies
+Plot words that appear at least 30 times.
+```{r}
+library(ggplot2)   
+## Warning: package 'ggplot2' was built under R version 3.2.5
+## 
+## Attaching package: 'ggplot2'
+## The following object is masked from 'package:NLP':
+## 
+##     annotate
+p <- ggplot(subset(wf, freq>30), aes(word, freq))    
+p <- p + geom_bar(stat="identity")   
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))   
+p 
+```
+Relationships Between Terms
+Term Correlations
+
+If you have a term in mind that you have found to be particularly meaningful to your analysis, then you may find it helpful to identify the words that most highly correlate with that term. If words always appear together, then correlation=1.0.
+```{r}
+findAssocs(dtm, c("oil" , "prices"), corlimit=0.8) 
+# specifying a correlation limit of 0.8
+## $oil
+##  opec named 
+##  0.87  0.81 
+## 
+## $prices
+## recent 
+##    0.8
+```
+In this case, "oil" and "prices" were highly correlated with numerous other terms. Setting corlimit= to 0.8 prevented the list from being overly long. Feel free to adjust the corlimit= to any value you feel is necessary.
+
+
+
+
+
+
+
+
+

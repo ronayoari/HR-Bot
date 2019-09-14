@@ -1,0 +1,216 @@
+---
+title: "Ex2 - API"
+authors: "Ronit Yoari & Orel Swisa"
+date: "April 12, 2016"
+output: html_document
+
+Road Safety Data: The first film of the data, a data file found on the Web in a structured format of CSV.
+
+reference: https://data.gov.uk/dataset/road-accidents-safety-data
+---
+## Twitter API
+Twitter :
+<https://twitter.com>.
+
+Connect Orel_Swisa Twitter account.
+```{r,echo=FALSE,message=FALSE}
+library(tm)
+require(twitteR)
+
+dateAPI <- date()
+dateAPI
+
+consumer_key <- "sjqXRKHfR2rD5VSPlYyscGTv1"
+consumer_secret <- "fwB8pwlkc9K1YnrdKHt7pyZN0WzgsHiAoKUJJ9VpxCsoLKilWe"
+access_token <- "1493511710-wmaNFnHNyn2FbutPkHCCwq61XOqYyuO7ODh4nsf"
+access_secret <- "hpV8u6PCmH2eJUPbkUnKHPjgvTtPb5FnfUal64AM9phuR"
+
+# Connect Twitter account
+sig <- twitteR::setup_twitter_oauth(consumer_key , consumer_secret, access_token, access_secret)
+
+```
+
+Head of 500 tweets with the hashtag **#SuperClasico** from the **Mondial** date
+```{r,echo=FALSE,message=FALSE,background='blue'}
+# get 500 tweets with the hashtag #SuperClasico 
+SuperClasico <- searchTwitter("#SuperClasico", n = 500 ,since = '2016-04-02 00:00', until = '2016-04-03 00:00')
+
+
+
+head(SuperClasico)
+```
+
+
+```{r,echo=FALSE,message=FALSE}
+# Summarize information about a list of tweets in a data frame - SuperClasico.
+data_mining_SuperClasico <- twListToDF(SuperClasico)
+
+# Remove stop words :
+data_mining_SuperClasico2 = stringr::str_replace_all(data_mining_SuperClasico$text,"[^[:graph:]]", " ")
+
+# get the body of SuperClasico hashtag
+data_mining_corpus_SuperClasico = tm::Corpus(VectorSource(data_mining_SuperClasico2))
+
+
+# remove stripWhitespace from text.
+# get the text in lower case.
+# remove Punctuation from text.
+# remove not english words.
+
+# ADD : Document To term
+data_mining_tdm = TermDocumentMatrix(data_mining_corpus_SuperClasico, control = list(minWordLength = 1, removePunctuation=TRUE, stopwords = c(stopwords('english')), removeNumbers=TRUE,tolower=TRUE,stripWhitespace=TRUE))
+
+# Rows = Terms
+# Cols = Document
+# matrix with all data
+m <- as.matrix(data_mining_tdm)
+#       View(m)
+
+```
+
+Most frequently used words in tweets with hashtag #SuperClasico
+```{r,echo=FALSE,message=FALSE}
+word_freqs <- sort(rowSums(m), decreasing = TRUE)
+head(word_freqs)
+
+dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+#       View(dm)
+
+```
+
+Sum of tweets with hashtag #SuperClasico that contains the word ***RealMadrid*** (ignore lowwer/uper case) 
+```{r,echo=FALSE,message=FALSE}
+#       grep('RealMadrid',data_mining_SuperClasico$text,ignore.case = TRUE)
+length(grep('RealMadrid',data_mining_SuperClasico$text, ignore.case = TRUE))
+
+```
+
+Sum of tweets with hashtag #SuperClasico that contains the word ***Barcelona*** (ignore lowwer/uper case)
+```{r,echo=FALSE,message=FALSE}
+length(grep('Barcelona',data_mining_SuperClasico$text, ignore.case = TRUE))
+
+```
+
+## wordcloud of the tweets use in hashtag **#SuperClasico**
+```{r,echo=FALSE,message=FALSE}
+library(wordcloud)
+
+#windows()
+wordcloud(head(dm$word,200), head(dm$freq,200), random.order = FALSE, colors = brewer.pal(8, 'Dark2'), max.words = 100)
+#dev.off()
+```
+
+**wordcloud conclusions :**
+
+As we can see the world **"SuperClasico"** is the biggest and in the  center of the wordcloud, after it the next word according to the number of times it appears in tweets is **RealMadrid** and only after it we have **Barcelona**.
+
+The result of the game was that **Real Madrid won**, Hence Real Madrid's fans were more glad and due to they tweeted more.
+As you can see the word **Cristiano** is also have big appearing in the wordcloud, It resulted in the fact that he scored the most goals in the game, his play determined the final score and brought the victory to Real Madrid.
+
+```{r,echo=FALSE,message=FALSE}
+# save text
+#   SuperClasico_text <- sapply(SuperClasico, function(x) x$getText())
+#   SuperClasico
+```
+
+
+```{r,echo=FALSE,message=FALSE,include=FALSE}
+library(tm)
+require(twitteR)
+
+#       user <- twitteR::getUser('Orel_Swisa')
+#       friends <- user$getFriends()
+#       friends 
+
+
+n<-20 
+name<-"Orel_Swisa"
+#       friends <- sapply(friends.object[1:n],name)
+#       followers <- sapply(followers.object[1:n],name)
+
+superclassico_dtm = TermDocumentMatrix(data_mining_corpus_SuperClasico, control = list(minWordLength = 4, removePunctuation=TRUE, stopwords = c(stopwords('english')), removeNumbers=TRUE,tolower=TRUE,stripWhitespace=TRUE))
+
+#       View(inspect(superclasico_dtm))
+te<-inspect(superclassico_dtm)
+termsMet <- te %*% t(te)
+```
+Network analysis of tweets that contain the hashtag **Barcelona** - and containing the following words:
+
+***Barcelona's players*** : Messi, Neymar, Sourez
+MSN = Messi Sourez Neymar
+
+***Real Madrid's players*** : Cristiano Ronaldo , Gareth Frank Bale, Benzema
+BBC= Bale Benzema Cristiano
+```{r,echo=FALSE,message=FALSE}
+
+termsRow<-c('superclasico','madrid','realmadrid','barcelona','messi','neymar','cristiano','ronaldo','bale','benzema','bbc','msn')
+termsRCol<-termsRow
+termsMet<-termsMet[termsRow,c('superclasico','madrid','realmadrid','barcelona','messi','neymar','cristiano','ronaldo','bale','benzema','bbc','msn')]
+
+termsMet
+library(igraph)
+
+g <- graph.adjacency(termsMet, weighted=TRUE, mode = 'undirecte')
+g <- set.edge.attribute(g, "weight", value=runif(ecount(g)))
+g <- simplify(g)
+V(g)$color <- "green"
+V(g)$label <- V(g)$name
+
+V(g)$degree <- degree(g)
+
+# set seed to make the layout reproducible
+set.seed(2000)
+layout1 <- layout.fruchterman.reingold(g)
+#     plot(g, layout=layout1,vertex.size=15)
+
+V(g)$label.cex <- 2.2 * V(g)$degree / max(V(g)$degree)+ .2
+V(g)$label.color <- rgb(0, 0, .2, .8)
+V(g)$frame.color <- NA
+#egam <- (log(E(g)$weight+.4)) / max(log(E(g)$weight)+.4)
+#E(g)$color <- rgb(.5, .5, 0, egam)
+#E(g)$width <- egam
+
+# plot the graph in layout1
+plot(g, layout=layout1,vertex.size=30)
+```
+
+
+```{r,message=FALSE}
+SuperClasico21 <- searchTwitter("#SuperClasico" ,since = '2016-04-02 21:00', until = '2016-04-02 22:00')
+length(SuperClasico21)
+
+SuperClasico22 <- searchTwitter("#SuperClasico" ,since = '2016-04-02 22:00', until = '2016-04-02 23:00')
+length(SuperClasico22)
+
+SuperClasico23 <- searchTwitter("#SuperClasico" ,since = '2016-04-02 23:00', until = '2016-04-02 23:59')
+length(SuperClasico23)
+
+SuperClasico24 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 00:00', until = '2016-04-03 05:00')
+length(SuperClasico24)
+
+SuperClasico5 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 05:00', until = '2016-04-03 06:00')
+length(SuperClasico5)
+
+SuperClasico6 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 06:00', until = '2016-04-03 07:00')
+length(SuperClasico6)
+
+SuperClasico7 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 07:00', until = '2016-04-03 12:00')
+length(SuperClasico7)
+
+SuperClasico12 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 12:00', until = '2016-04-03 13:00')
+length(SuperClasico12)
+
+SuperClasico13 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 13:00', until = '2016-04-03 14:00')
+length(SuperClasico13)
+
+SuperClasico14 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 14:00', until = '2016-04-03 19:00')
+length(SuperClasico14)
+
+SuperClasico19 <- searchTwitter("#SuperClasico" ,since = '2016-04-03 19:00', until = '2016-04-03 23:59')
+length(SuperClasico19)
+
+```
+
+
+
+

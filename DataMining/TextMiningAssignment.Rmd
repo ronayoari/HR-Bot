@@ -1,0 +1,128 @@
+---
+title: "TextMiningAssignment"
+author: "Ronit Yoari"
+date: "May 27, 2016"
+output: html_document
+---
+This document is intended to help you start handling your text mining assignment. For more details on Kaggle's "Crowdflower Search Results Relevance" competition, see https://www.kaggle.com/c/crowdflower-search-relevance.
+
+You can use this file to load the data and observe how to use an example classifier for predicting relevance scores.
+
+You may use one of the three suggested classifiers or others. The preprocessing step, however, is the important part on which you should focus. Use your text mining skills to extract strong features from the input attributes. Use the extracted features as the input for the model creation as described below (for very weak extracted features).
+
+Let's start
+Clear your work space
+```{r}
+rm(list = ls(all = TRUE))
+```
+Set your working directory, and place your input files there
+```{r}
+setwd("C:\\Users\\Rona\\Google Drive\\DataScientist\\TextMining")
+```
+Install required packages
+```{r}
+# install.packages("readr")
+# install.packages("party")
+# #Installation of caret failed for some missing packages, so here we install them:
+# install.packages("iterators")
+# install.packages("scales")
+# install.packages("pbkrtest")
+# #for older R versions, an older pbkrtest should be installed:
+# install.packages("lme4")
+# packageurl <- "https://cran.r-project.org/src/contrib/Archive/pbkrtest/pbkrtest_0.4-4.tar.gz" 
+# install.packages(packageurl, repos=NULL, type="source")
+# #finally we can install caret:
+# install.packages("caret", dependencies = TRUE)
+# install.packages("Metrics")
+```
+Loading the data
+Use readr package in for loading files with flat text
+```{r}
+library(readr)
+
+unzip("train.csv.zip")
+train <- read_csv("train.csv")
+unzip("test.csv.zip")
+test  <- read_csv("test.csv")
+```
+**Preprocessing**
+We want to classify each record into one of four possible categories (1,2,3,4). We should therefore convert our target attribute to nominal (otherwise it is numeric, so values like 1.22 or 3.5 are also considered). We use the factor method for this task.
+```{r}
+train$median_relevance <- factor(train$median_relevance)
+```
+**Extract your smart features**
+Use the text mining techniques that we learnt, and try to convert the current input attributes into some smarter set of attributes that will help to predict relevance ranks. For the sake of demonstrating the rest of the process, I used some very unclever preprocessing, in which each textual attribute is truncated to its first character. Notice that when using nominal features (like I did here), a reasonable number of categories must be acquired for each feature (otherwise the efficiency of the model creation significantly decreases).
+```{r}
+#Preprocess the train data
+train$query <- factor(substr(train$query,1,1),)
+train$product_title <- factor(tolower(substr(train$product_title,1,1)))
+train$product_description <- factor(tolower(substr(train$product_description,1,1)))
+
+#Preprocess the test data as well
+test$query <- factor(substr(test$query,1,1))
+test$product_title <- factor(tolower(substr(test$product_title,1,1)))
+test$product_description <- factor(tolower(substr(test$product_description,1,1)))
+```
+In order to avoid tackling test categories that are unfamiliar to the trained model, we make sure that the nominal attribute is set according to categories in both the train and test sets.
+```{r}
+levels(train$query) <- union(levels(train$query), levels(test$query))
+levels(train$product_title) <- union(levels(train$product_title), levels(test$product_title))
+levels(train$product_description) <- union(levels(train$product_description), levels(test$product_description))
+levels(test$query) <- union(levels(train$query), levels(test$query))
+levels(test$product_title) <- union(levels(train$product_title), levels(test$product_title))
+levels(test$product_description) <- union(levels(train$product_description), levels(test$product_description))
+```
+***Train/test evaluation****
+You might want to check several variations before you submit a result. It can either be several sets of input features, same model with different parameter settings, or various classification algorithms.
+
+In order to estimate the results, we split the train.csv data, which is the only available labeled set for this competition, into two sets: training and testing. The first will be used for learning the model, and the second will be used for evaluating its performance on unseen data.
+```{r}
+inTraining <- sample(1:nrow(train),  .75*nrow(train))
+training <- train[ inTraining,]
+testing  <- train[-inTraining,]
+```
+**Model creation**
+Let's train a classification model based on the training set. There are many existing algorithms to do this. Here are two examples:
+
+*Random Forest:*
+```{r}
+library(randomForest)
+model1 <- randomForest(median_relevance ~ query+product_title+product_description, data=training, ntree=3)
+```
+***CART1:***
+Here is an example how you can use the caret package for creating a decision tree, by tuning the method parameter to the chosen classification algorithm.
+```{r}
+library(party)
+library(caret)
+library(rpart)
+model2 <- train(median_relevance ~ query+product_title+product_description, data = training, method = "rpart", trControl = trainControl(classProbs = F))
+```
+See a list of available classification or regression methods using Caret:
+```{r}
+names(getModelInfo())
+```
+***Classification for evaluation***
+Now let's classify our testing data. Remember that this is still a labeled set, so we can compare the results to the original label later.
+```{r}
+results1 <- predict(model1, newdata = testing)
+results2 <- predict(model2, newdata = testing)
+```
+***Evaluation of results***
+Submissions are scored based on the quadratic weighted kappa, which measures the agreement between two ratings. (See https://www.kaggle.com/c/crowdflower-search-relevance/details/evaluation).
+```{r}
+library(Metrics)
+ScoreQuadraticWeightedKappa(testing$median_relevance, results1, 1, 4)
+ScoreQuadraticWeightedKappa(testing$median_relevance, results2, 1, 4)
+```
+***Model creation for prediction***
+For the sake of training without evaluation, we may train a richer model using the entire labeled data (train.csv). Here is a demonstration using randomForest, but you can do the same with other classifiers.
+```{r}
+model <- randomForest(median_relevance ~ query+product_title+product_description, data=train, ntree=3)
+```
+***Classification for prediction***
+Classifying the test.csv data and exporting the results to a submission file.
+```{r}
+results <- predict(model, newdata = test)
+Newsubmission = data.frame(id=test$id, prediction = results)
+write.csv(Newsubmission,"model.csv",row.names=F)  
+```
